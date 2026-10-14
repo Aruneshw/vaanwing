@@ -15,7 +15,9 @@ function Shell() {
   const remote = useRemote();
   const { pathname } = useLocation();
 
-  useEffect(() => window.scrollTo(0, 0), [pathname]);
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [pathname]);
 
   // New students (no history) start with the intake conversation + diagnostic quiz.
   useEffect(() => {

@@ -202,7 +202,9 @@ function Recorder() {
     const t = window.setInterval(() => setSecs((s) => s + 1), 1000);
     return () => window.clearInterval(t);
   }, [rec]);
-  useEffect(() => () => stream.current?.getTracks().forEach((t) => t.stop()), []);
+  useEffect(() => () => {
+    stream.current?.getTracks().forEach((t) => t.stop());
+  }, []);
   const start = async () => {
     setSecs(0);
     try {

@@ -21,7 +21,9 @@ export default function CommandPalette() {
   const inputRef = useRef<HTMLInputElement>(null);
   const close = () => setPaletteOpen(false);
 
-  useEffect(() => inputRef.current?.focus(), []);
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
 
   const items = useMemo<Item[]>(() => {
     const go = (fn: () => void) => () => {
@@ -52,7 +54,9 @@ export default function CommandPalette() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [q, state.subjects, state.resources]);
 
-  useEffect(() => setActive(0), [q]);
+  useEffect(() => {
+    setActive(0);
+  }, [q]);
 
   let lastGroup = '';
   return (

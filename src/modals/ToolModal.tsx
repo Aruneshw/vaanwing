@@ -323,7 +323,9 @@ function AudioTool() {
   const [playing, setPlaying] = useState(false);
   const [rate, setRate] = useState(1);
   const supported = typeof window !== 'undefined' && 'speechSynthesis' in window;
-  useEffect(() => () => window.speechSynthesis?.cancel(), []);
+  useEffect(() => () => {
+    window.speechSynthesis?.cancel();
+  }, []);
   const toggle = () => {
     if (!supported) return;
     if (playing) {
