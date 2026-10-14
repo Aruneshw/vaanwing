@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { HashRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
+import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { StoreProvider, useStore } from './store';
 import { Header } from './components/Header';
 import CommandPalette from './components/CommandPalette';
@@ -9,13 +9,30 @@ import Learn from './pages/Learn';
 import Tutor from './pages/Tutor';
 import { api } from './api';
 import { useRemote } from './remote';
+import { ErrorBoundary } from './components/ErrorBoundary';
+
+function HashSync() {
+  const navigate = useNavigate();
+  useEffect(() => {
+    // If a link or redirect arrives with a hash like /#/learn or #/tutor, sync it to normal route
+    if (window.location.hash) {
+      const target = window.location.hash.replace(/^#/, '');
+      if (target && target.startsWith('/')) {
+        navigate(target, { replace: true });
+      }
+    }
+  }, [navigate]);
+  return null;
+}
 
 function Shell() {
   const { state, actions, paletteOpen, toasts, modal, setModal, backend, setBackend, toast } = useStore();
   const remote = useRemote();
   const { pathname } = useLocation();
 
-  useEffect(() => window.scrollTo(0, 0), [pathname]);
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [pathname]);
 
   // New students (no history) start with the intake conversation + diagnostic quiz.
   useEffect(() => {
@@ -53,6 +70,7 @@ function Shell() {
 
   return (
     <div className="app">
+      <HashSync />
       <Header />
       <Routes>
         <Route path="/" element={<Home />} />
@@ -76,10 +94,12 @@ function Shell() {
 
 export default function App() {
   return (
-    <HashRouter>
+    <BrowserRouter>
       <StoreProvider>
-        <Shell />
+        <ErrorBoundary>
+          <Shell />
+        </ErrorBoundary>
       </StoreProvider>
-    </HashRouter>
+    </BrowserRouter>
   );
 }

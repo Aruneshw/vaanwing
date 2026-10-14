@@ -608,6 +608,9 @@ function useStoreValue() {
           ),
         );
       },
+      dismissOnboarding() {
+        update((s) => ({ ...s, onboarded: true }));
+      },
       setEvalResult(evalResult: EvalResult) {
         update((s) => ({ ...s, evalResult }));
       },
