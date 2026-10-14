@@ -9,6 +9,7 @@ import Learn from './pages/Learn';
 import Tutor from './pages/Tutor';
 import { api } from './api';
 import { useRemote } from './remote';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 function HashSync() {
   const navigate = useNavigate();
@@ -95,7 +96,9 @@ export default function App() {
   return (
     <BrowserRouter>
       <StoreProvider>
-        <Shell />
+        <ErrorBoundary>
+          <Shell />
+        </ErrorBoundary>
       </StoreProvider>
     </BrowserRouter>
   );
