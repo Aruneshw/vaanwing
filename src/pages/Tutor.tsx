@@ -234,7 +234,7 @@ export default function Tutor() {
           setModal({ type: 'quiz', adaptive: true, count: 5, subjectId: findOsSubjectId(state.subjects) && !/machine|data science|python/.test(lower) ? findOsSubjectId(state.subjects) : undefined });
       }, 650 + Math.random() * 500);
     },
-    [actions, intent, state.chunks, state.chat, state.resources, state.tutorMode, thinking, webSearch, setModal, backend.online],
+    [actions, intent, state.chunks, state.chat, state.resources, state.subjects, state.tutorMode, thinking, webSearch, setModal, backend.online],
   );
 
   // A question handed over from another page (e.g. "Ask AI Tutor" on a concept)
