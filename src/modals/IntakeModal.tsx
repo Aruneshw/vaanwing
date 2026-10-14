@@ -118,7 +118,10 @@ export default function IntakeModal() {
   return (
     <Modal
       width={680}
-      onClose={() => setModal(null)}
+      onClose={() => {
+        actions.dismissOnboarding();
+        setModal(null);
+      }}
       icon={<span className="tile tile-md t-green"><GraduationCap size={20} /></span>}
       title={step === 'quiz' ? 'Diagnostic quiz' : step === 'result' ? 'Your starting profile' : 'Welcome to StudyNest'}
       subtitle={step === 'quiz' ? `${subject?.name} · question ${i + 1} of ${questions.length} · one per topic` : 'New here? Let’s learn what you know so your path fits you.'}
