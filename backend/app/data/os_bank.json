@@ -1,0 +1,412 @@
+{
+ "topics": [
+  "Introduction to Operating Systems",
+  "Process Management",
+  "Process Synchronization",
+  "Memory Management",
+  "Virtual Memory",
+  "Paging",
+  "Segmentation",
+  "File Systems",
+  "I/O and Interrupts",
+  "Deadlocks",
+  "CPU Scheduling",
+  "Disk Management",
+  "Disk Scheduling Algorithms",
+  "Protection and Security",
+  "Cryptography",
+  "Data Encryption",
+  "Distributed Operating Systems"
+ ],
+ "questions": [
+  {
+   "id": "os1",
+   "subjectId": "os",
+   "concept": "os-01",
+   "difficulty": "Easy",
+   "type": "mcq",
+   "prompt": "An operating system is best described as…",
+   "answer": 1,
+   "explanation": "The OS is system software that manages hardware resources and provides common services to applications.",
+   "options": [
+    "An application that edits documents",
+    "System software that manages hardware and provides services to applications",
+    "A hardware component inside the CPU",
+    "A programming language"
+   ],
+   "source": "Operating System Notes.pdf • p. 3"
+  },
+  {
+   "id": "os2",
+   "subjectId": "os",
+   "concept": "os-01",
+   "difficulty": "Medium",
+   "type": "mcq",
+   "prompt": "How do applications normally request privileged operations?",
+   "answer": 2,
+   "explanation": "Applications go through controlled OS interfaces (system calls) instead of touching hardware directly.",
+   "options": [
+    "By writing directly to device registers",
+    "By rebooting the machine",
+    "Through the system-call interface",
+    "Through the BIOS only"
+   ],
+   "source": "Operating System Notes.pdf • p. 3"
+  },
+  {
+   "id": "os3",
+   "subjectId": "os",
+   "concept": "os-02",
+   "difficulty": "Easy",
+   "type": "mcq",
+   "prompt": "Which structure stores a process’s state, program counter and CPU registers?",
+   "answer": 0,
+   "explanation": "The Process Control Block (PCB) holds process-management information.",
+   "options": [
+    "Process Control Block (PCB)",
+    "Page table",
+    "Segment table",
+    "Inode"
+   ],
+   "source": "Operating System Notes.pdf • p. 6"
+  },
+  {
+   "id": "os4",
+   "subjectId": "os",
+   "concept": "os-02",
+   "difficulty": "Medium",
+   "type": "mcq",
+   "prompt": "A process waiting for an I/O event is in which state?",
+   "answer": 3,
+   "explanation": "Waiting = waiting for an event such as I/O; Ready = waiting for the CPU.",
+   "options": [
+    "New",
+    "Ready",
+    "Running",
+    "Waiting"
+   ],
+   "source": "Operating System Notes.pdf • p. 8"
+  },
+  {
+   "id": "os5",
+   "subjectId": "os",
+   "concept": "os-02",
+   "difficulty": "Easy",
+   "type": "short",
+   "prompt": "What is the name for saving one process’s execution state and restoring another’s?",
+   "answer": "context switch",
+   "explanation": "That is a context switch.",
+   "accept": [
+    "context switch",
+    "context-switch",
+    "context switching"
+   ],
+   "source": "Operating System Notes.pdf • p. 6"
+  },
+  {
+   "id": "os6",
+   "subjectId": "os",
+   "concept": "os-03",
+   "difficulty": "Medium",
+   "type": "mcq",
+   "prompt": "A race condition occurs when…",
+   "answer": 1,
+   "explanation": "Correctness depends on the relative timing of concurrent accesses to shared data.",
+   "options": [
+    "Two processes use different memory",
+    "The result depends on the timing of concurrent operations",
+    "The CPU runs too fast",
+    "A process finishes early"
+   ],
+   "source": "Operating System Notes.pdf • p. 9"
+  },
+  {
+   "id": "os7",
+   "subjectId": "os",
+   "concept": "os-03",
+   "difficulty": "Medium",
+   "type": "mcq",
+   "prompt": "A semaphore is manipulated through which atomic operations?",
+   "answer": 0,
+   "explanation": "Semaphores are integers changed only through atomic wait/signal.",
+   "options": [
+    "wait and signal",
+    "read and write",
+    "fork and exec",
+    "open and close"
+   ],
+   "source": "Operating System Notes.pdf • p. 10"
+  },
+  {
+   "id": "os8",
+   "subjectId": "os",
+   "concept": "os-04",
+   "difficulty": "Easy",
+   "type": "mcq",
+   "prompt": "Which of these is NOT a common contiguous allocation strategy?",
+   "answer": 3,
+   "explanation": "First-fit, best-fit and worst-fit are the common strategies.",
+   "options": [
+    "First-fit",
+    "Best-fit",
+    "Worst-fit",
+    "Round-fit"
+   ],
+   "source": "Operating System Notes.pdf • p. 12"
+  },
+  {
+   "id": "os9",
+   "subjectId": "os",
+   "concept": "os-05",
+   "difficulty": "Medium",
+   "type": "mcq",
+   "prompt": "Too many page faults that leave the CPU doing little useful work is called…",
+   "answer": 2,
+   "explanation": "Excessive page faults cause thrashing.",
+   "options": [
+    "Paging",
+    "Swapping",
+    "Thrashing",
+    "Spooling"
+   ],
+   "source": "Operating System Notes.pdf • p. 15"
+  },
+  {
+   "id": "os10",
+   "subjectId": "os",
+   "concept": "os-06",
+   "difficulty": "Medium",
+   "type": "numeric",
+   "prompt": "Page size is 4096 bytes. How many offset bits are in an address?",
+   "answer": "12",
+   "explanation": "Offset bits = log2(page size) = log2(4096) = 12.",
+   "source": "Operating System Notes.pdf • p. 54"
+  },
+  {
+   "id": "os11",
+   "subjectId": "os",
+   "concept": "os-06",
+   "difficulty": "Easy",
+   "type": "mcq",
+   "prompt": "What does a TLB do?",
+   "answer": 1,
+   "explanation": "The TLB caches recent page-table translations to reduce lookup time.",
+   "options": [
+    "Stores entire files",
+    "Caches recent address translations",
+    "Schedules the CPU",
+    "Encrypts pages"
+   ],
+   "source": "Operating System Notes.pdf • p. 18"
+  },
+  {
+   "id": "os12",
+   "subjectId": "os",
+   "concept": "os-07",
+   "difficulty": "Medium",
+   "type": "numeric",
+   "prompt": "Segment base = 1400, limit = 1000, offset = 53. What is the physical address?",
+   "answer": "1453",
+   "explanation": "Physical address = base + offset (offset < limit) = 1400 + 53 = 1453.",
+   "source": "Operating System Notes.pdf • p. 54"
+  },
+  {
+   "id": "os13",
+   "subjectId": "os",
+   "concept": "os-08",
+   "difficulty": "Easy",
+   "type": "mcq",
+   "prompt": "Which is a file allocation method?",
+   "answer": 2,
+   "explanation": "Contiguous, linked and indexed allocation are the common approaches.",
+   "options": [
+    "Round Robin",
+    "SSTF",
+    "Indexed allocation",
+    "Demand paging"
+   ],
+   "source": "Operating System Notes.pdf • p. 24"
+  },
+  {
+   "id": "os14",
+   "subjectId": "os",
+   "concept": "os-09",
+   "difficulty": "Medium",
+   "type": "mcq",
+   "prompt": "Which mechanism lets a controller move data to memory with little CPU involvement?",
+   "answer": 1,
+   "explanation": "DMA transfers blocks between device and memory with limited CPU involvement.",
+   "options": [
+    "Polling",
+    "DMA",
+    "Spooling",
+    "Context switching"
+   ],
+   "source": "Operating System Notes.pdf • p. 27"
+  },
+  {
+   "id": "os15",
+   "subjectId": "os",
+   "concept": "os-10",
+   "difficulty": "Medium",
+   "type": "mcq",
+   "prompt": "Which is NOT one of the four necessary conditions for deadlock?",
+   "answer": 3,
+   "explanation": "The four are mutual exclusion, hold and wait, no preemption and circular wait.",
+   "options": [
+    "Mutual exclusion",
+    "Hold and wait",
+    "Circular wait",
+    "Preemption allowed"
+   ],
+   "source": "Operating System Notes.pdf • p. 30"
+  },
+  {
+   "id": "os16",
+   "subjectId": "os",
+   "concept": "os-10",
+   "difficulty": "Hard",
+   "type": "mcq",
+   "prompt": "The Banker’s algorithm is a classic approach to deadlock…",
+   "answer": 1,
+   "explanation": "Avoidance needs information about future resource demands — the Banker’s algorithm.",
+   "options": [
+    "Detection",
+    "Avoidance",
+    "Recovery",
+    "Prevention by preemption"
+   ],
+   "source": "Operating System Notes.pdf • p. 30"
+  },
+  {
+   "id": "os17",
+   "subjectId": "os",
+   "concept": "os-11",
+   "difficulty": "Hard",
+   "type": "numeric",
+   "prompt": "FCFS bursts 5, 2, 4 arrive at time 0 in that order. What is the average waiting time?",
+   "answer": "4",
+   "explanation": "Waits are 0, 5 and 7 → (0 + 5 + 7) / 3 = 4.",
+   "source": "Operating System Notes.pdf • p. 35"
+  },
+  {
+   "id": "os18",
+   "subjectId": "os",
+   "concept": "os-11",
+   "difficulty": "Medium",
+   "type": "mcq",
+   "prompt": "Which algorithm can suffer from the convoy effect?",
+   "answer": 0,
+   "explanation": "FCFS is simple but long jobs at the front create a convoy.",
+   "options": [
+    "FCFS",
+    "Round Robin",
+    "SJF",
+    "Priority with aging"
+   ],
+   "source": "Operating System Notes.pdf • p. 33"
+  },
+  {
+   "id": "os19",
+   "subjectId": "os",
+   "concept": "os-12",
+   "difficulty": "Easy",
+   "type": "mcq",
+   "prompt": "Disk access time does NOT include…",
+   "answer": 3,
+   "explanation": "It includes seek time, rotational latency and transfer time.",
+   "options": [
+    "Seek time",
+    "Rotational latency",
+    "Transfer time",
+    "Time quantum"
+   ],
+   "source": "Operating System Notes.pdf • p. 36"
+  },
+  {
+   "id": "os20",
+   "subjectId": "os",
+   "concept": "os-13",
+   "difficulty": "Medium",
+   "type": "mcq",
+   "prompt": "Which disk algorithm picks the request with the smallest seek distance (and may starve far requests)?",
+   "answer": 1,
+   "explanation": "SSTF = Shortest Seek Time First.",
+   "options": [
+    "FCFS",
+    "SSTF",
+    "SCAN",
+    "C-SCAN"
+   ],
+   "source": "Operating System Notes.pdf • p. 39"
+  },
+  {
+   "id": "os21",
+   "subjectId": "os",
+   "concept": "os-14",
+   "difficulty": "Easy",
+   "type": "mcq",
+   "prompt": "Authentication establishes ____; authorization controls ____.",
+   "answer": 0,
+   "explanation": "Authentication = identity; authorization = permitted actions.",
+   "options": [
+    "identity; allowed actions",
+    "allowed actions; identity",
+    "encryption; hashing",
+    "speed; storage"
+   ],
+   "source": "Operating System Notes.pdf • p. 42"
+  },
+  {
+   "id": "os22",
+   "subjectId": "os",
+   "concept": "os-15",
+   "difficulty": "Medium",
+   "type": "mcq",
+   "prompt": "Asymmetric cryptography uses…",
+   "answer": 2,
+   "explanation": "A public/private key pair; useful for key exchange and signatures.",
+   "options": [
+    "One shared secret key",
+    "No keys at all",
+    "A public/private key pair",
+    "Only hash functions"
+   ],
+   "source": "Operating System Notes.pdf • p. 45"
+  },
+  {
+   "id": "os23",
+   "subjectId": "os",
+   "concept": "os-16",
+   "difficulty": "Medium",
+   "type": "mcq",
+   "prompt": "How should a system store user passwords?",
+   "answer": 1,
+   "explanation": "Use salted, slow password hashes — never reversible passwords.",
+   "options": [
+    "Encrypted with a reversible key",
+    "As salted, slow hashes",
+    "In plain text",
+    "Base64-encoded"
+   ],
+   "source": "Operating System Notes.pdf • p. 48"
+  },
+  {
+   "id": "os24",
+   "subjectId": "os",
+   "concept": "os-17",
+   "difficulty": "Easy",
+   "type": "mcq",
+   "prompt": "Which is a challenge specific to distributed systems?",
+   "answer": 2,
+   "explanation": "Delays, partial failures and no single global clock.",
+   "options": [
+    "Having one CPU",
+    "Too little RAM",
+    "No single global clock",
+    "Lack of a file system"
+   ],
+   "source": "Operating System Notes.pdf • p. 51"
+  }
+ ]
+}

@@ -1,0 +1,29 @@
+fastapi>=0.115
+uvicorn[standard]>=0.30
+python-multipart>=0.0.9
+pydantic-settings>=2.4
+sqlalchemy>=2.0
+psycopg[binary]>=3.2        # Postgres driver (DATABASE_URL=postgresql+psycopg://...)
+numpy>=1.26
+rank-bm25>=0.2.2
+
+# models
+anthropic>=1.14             # Claude roles (official SDK)
+litellm>=1.50               # every other provider: OpenAI, Gemini, Mistral, Ollama, ...
+
+# ingestion
+pymupdf>=1.24               # PDF text, images, page renders
+python-pptx>=1.0            # slides
+youtube-transcript-api>=1.2 # YouTube transcripts with timestamps
+beautifulsoup4>=4.12        # web pages
+httpx>=0.27
+
+# background jobs (optional: only when REDIS_URL is set)
+redis>=5.0
+rq>=1.16
+
+# optional, heavier extras — install when needed:
+#   faster-whisper   video/audio transcription          (pip install faster-whisper)
+#   fastembed        local ONNX embeddings, no API key  (pip install fastembed; EMBEDDING_MODEL=fastembed)
+
+pytest>=8.0
