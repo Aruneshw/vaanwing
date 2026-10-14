@@ -61,8 +61,8 @@ function UploadForm() {
   const handle = async (files: FileList | null) => {
     if (!files?.length) return;
     for (const f of Array.from(files)) {
-      const { resource, chunks } = await fileToResource(f);
-      actions.addResource(resource, chunks);
+      const { resource, chunks, subject } = await fileToResource(f);
+      actions.addResource(resource, chunks, subject);
     }
     setModal(null);
   };

@@ -72,7 +72,7 @@ export function answer(question: string, chunks: Chunk[], opts: { mode: string; 
   }
 
   const citations = hits.map((c, i) => ({ n: i + 1, chunkId: c.id }));
-  const topic = hits[0].topic;
+  const topic = hits[0].topic.split(':')[0];
   let intro = `Here's what your sources say about **${topic}**:`;
   if (opts.intent === 'summarize') intro = `Summary of **${topic}** from your materials:`;
   if (opts.intent === 'solve') intro = `Let's work through it step by step using your sources:`;

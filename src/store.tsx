@@ -13,6 +13,7 @@ import {
   type Theme,
   type SubjectIcon,
 } from './data';
+import type { EvalResult } from './eval';
 
 export interface Note {
   id: string;
@@ -51,6 +52,7 @@ export interface ChatMessage {
   text: string;
   citations?: Citation[];
   grounded?: 'source' | 'outside' | 'declined';
+  actions?: { label: string; modal: ModalState }[];
   at: number;
 }
 
@@ -82,7 +84,9 @@ export type ModalState =
   | { type: 'settings' }
   | { type: 'flowmap'; subjectId: string }
   | { type: 'progress' }
-  | { type: 'path' };
+  | { type: 'path' }
+  | { type: 'intake' }
+  | { type: 'evalReport' };
 
 export interface State {
   userName: string;
@@ -104,6 +108,8 @@ export interface State {
   pathStep: number;
   tutorMode: string;
   analysis: number; // knowledge-base processing progress 0-100
+  onboarded: boolean; // false → new student: intake conversation + diagnostic quiz
+  evalResult?: EvalResult;
 }
 
 const HOUR = 3600_000;
@@ -157,6 +163,7 @@ function seedState(): State {
     pathStep: 0,
     tutorMode: 'course',
     analysis: 70,
+    onboarded: true,
   };
 }
 
@@ -401,22 +408,50 @@ function useStoreValue() {
           return { ...s, subjects: arr };
         });
       },
-      addResource(r: Omit<Resource, 'id' | 'date' | 'status'>, chunks: Omit<Chunk, 'id' | 'resourceId'>[] = []) {
+      addResource(r: Omit<Resource, 'id' | 'date' | 'status'>, chunks: Omit<Chunk, 'id' | 'resourceId'>[] = [], subject?: Subject | null) {
         const id = uid();
         const date = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-        update((s) =>
-          logActivity(
+        update((s) => {
+          let next = logActivity(
             {
               ...s,
               resources: [{ ...r, id, date, status: 'processing' }, ...s.resources],
-              chunks: [...s.chunks, ...chunks.map((c) => ({ ...c, id: uid(), resourceId: id }))],
-              analysis: Math.min(s.analysis, 35),
+              chunks: [...s.chunks.filter((c) => !(subject && s.resources.some((x) => x.name === r.name && x.id === c.resourceId))), ...chunks.map((c) => ({ ...c, id: uid(), resourceId: id }))],
+              analysis: chunks.length ? Math.min(s.analysis, 75) : Math.min(s.analysis, 35),
             },
             'upload',
             `Added source: ${r.name}`,
-          ),
-        );
-        toast(`Added “${r.name}” — analyzing…`);
+          );
+          if (chunks.length) {
+            const topics = [...new Set(chunks.map((c) => c.topic.split(':')[0]))];
+            const msg: ChatMessage = {
+              id: uid(),
+              role: 'assistant',
+              at: now(),
+              grounded: 'source',
+              text:
+                `I've read **${r.name}** — ${r.meta}, ${chunks.length} cited excerpts across ${topics.length} topics` +
+                (subject ? ` (${subject.modules.length} topics added to Learn as “${subject.name}”).` : '.') +
+                `\n\nAsk me anything about it — e.g. “What is a deadlock?” or “Explain paging” — and I'll answer with page citations. Or take a quick test to see where you stand.`,
+              actions: subject
+                ? [
+                    { label: 'Take a quick test', modal: { type: 'quiz', subjectId: subject.id, count: 5, adaptive: true } },
+                    { label: 'Open in Learn', modal: { type: 'flowmap', subjectId: subject.id } },
+                  ]
+                : [{ label: 'View extracted excerpts', modal: { type: 'resource', resourceId: id } }],
+            };
+            next = { ...next, chat: [...next.chat, msg] };
+          }
+          if (subject && !next.subjects.some((x) => x.id === subject.id)) {
+            next = {
+              ...next,
+              subjects: [...next.subjects, subject],
+              notifications: [{ id: uid(), text: `“${subject.name}” course built from ${r.name}. Take the quick test!`, at: now(), read: false }, ...next.notifications],
+            };
+          }
+          return next;
+        });
+        toast(chunks.length ? `Indexed “${r.name}” — ${chunks.length} excerpts` : `Added “${r.name}” — analyzing…`);
         return id;
       },
       renameResource(id: string, name: string) {
@@ -462,6 +497,49 @@ function useStoreValue() {
         localStorage.removeItem(STORAGE_KEY);
         setState(seedState());
         toast('Demo data reset');
+      },
+      newStudent() {
+        // A brand-new learner: no history, unknown mastery, same course material.
+        const seed = seedState();
+        setState((s) => ({
+          ...seed,
+          userName: 'there',
+          resources: s.resources,
+          chunks: s.chunks,
+          subjects: s.subjects.map((sub) => ({ ...sub, modules: sub.modules.map((m) => ({ ...m, lessons: m.lessons.map((l) => ({ ...l, progress: 0, bookmarked: false })) })) })),
+          notes: [],
+          activity: [],
+          quizHistory: [],
+          mastery: {},
+          notifications: [{ id: uid(), text: 'Welcome to StudyNest! Start with a 2-minute intake and diagnostic quiz.', at: now(), read: false }],
+          studyLog: [0, 0, 0, 0, 0, 0, 0],
+          lastWeekMinutes: 1,
+          streak: 0,
+          analysis: 100,
+          onboarded: false,
+        }));
+        setModal({ type: 'intake' });
+      },
+      completeOnboarding(name: string, mastery: Record<string, number>, subjectId: string, answers: { questionId: string; correct: boolean }[]) {
+        update((s) =>
+          logActivity(
+            {
+              ...s,
+              userName: name || s.userName,
+              mastery: { ...s.mastery, ...mastery },
+              onboarded: true,
+              personalizedUnlocked: true,
+              seenQuestions: [...new Set([...s.seenQuestions, ...answers.map((a) => a.questionId)])],
+              quizHistory: [...s.quizHistory, { id: uid(), subjectId, score: answers.filter((a) => a.correct).length, total: answers.length, at: now(), weak: [] }],
+              lastLesson: s.subjects.find((x) => x.id === subjectId) ? { subjectId, lessonId: lessonsOf(s.subjects.find((x) => x.id === subjectId)!)[0].id } : s.lastLesson,
+            },
+            'quiz',
+            `Diagnostic: ${answers.filter((a) => a.correct).length}/${answers.length}`,
+          ),
+        );
+      },
+      setEvalResult(evalResult: EvalResult) {
+        update((s) => ({ ...s, evalResult }));
       },
     };
   }, [update, toast, state.subjects]);

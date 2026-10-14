@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { Bell, ChevronDown, LogOut, RotateCcw, Search, Settings, CheckCheck, User } from 'lucide-react';
+import { Bell, ChevronDown, LogOut, RotateCcw, Search, Settings, CheckCheck, User, UserPlus, Target } from 'lucide-react';
 import { Logo } from './Icons';
 import { useClickOutside } from './ui';
 import { timeAgo, useStore } from '../store';
@@ -111,6 +111,12 @@ export function Header() {
               </button>
               <button className="menu-item" onClick={() => { setUserOpen(false); setModal({ type: 'settings' }); }}>
                 <Settings size={16} /> Settings
+              </button>
+              <button className="menu-item" onClick={() => { setUserOpen(false); setModal({ type: 'intake' }); }}>
+                <Target size={16} /> Diagnostic quiz
+              </button>
+              <button className="menu-item" onClick={() => { setUserOpen(false); actions.newStudent(); }}>
+                <UserPlus size={16} /> Start as new student
               </button>
               <button className="menu-item" onClick={() => { setUserOpen(false); actions.reset(); }}>
                 <RotateCcw size={16} /> Reset demo data

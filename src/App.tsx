@@ -9,10 +9,15 @@ import Learn from './pages/Learn';
 import Tutor from './pages/Tutor';
 
 function Shell() {
-  const { state, actions, paletteOpen, toasts } = useStore();
+  const { state, actions, paletteOpen, toasts, modal, setModal } = useStore();
   const { pathname } = useLocation();
 
   useEffect(() => window.scrollTo(0, 0), [pathname]);
+
+  // New students (no history) start with the intake conversation + diagnostic quiz.
+  useEffect(() => {
+    if (!state.onboarded && !modal) setModal({ type: 'intake' });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Background "ingestion" of newly added sources.
   useEffect(() => {

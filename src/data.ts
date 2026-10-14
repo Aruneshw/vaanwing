@@ -1,3 +1,5 @@
+import { osConcepts, osQuestions } from './osCourse';
+
 // Seed data for StudyNest. Everything here is mock course material that the
 // frontend uses until a real backend (ingestion, retrieval, learner model) is wired in.
 
@@ -337,6 +339,8 @@ export const concepts: Concept[] = [
   { id: 'routing', name: 'Routing', subjectId: 'cn', source: 'CN Lecture 4.mp4 • 02:00', summary: 'How packets find a path.' },
 ];
 
+concepts.push(...osConcepts);
+
 // Link each concept to the first lesson that teaches it.
 for (const c of concepts) {
   for (const s of seedSubjects)
@@ -499,6 +503,8 @@ export const questionBank: Question[] = [
     prompt: 'Dijkstra’s algorithm is used by which routing protocol family?', options: ['Distance vector', 'Link state', 'Path vector', 'Flooding only'], answer: 1,
     explanation: 'Link-state protocols such as OSPF run Dijkstra’s shortest path.', source: 'CN Lecture 4.mp4 • 06:00' },
 ];
+
+questionBank.push(...osQuestions);
 
 export const suggestedQuestionPool = [
   { q: 'Explain the concept of backpropagation with diagram', from: 'from my slides', theme: 'blue' as Theme },

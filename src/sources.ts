@@ -1,7 +1,9 @@
 // Turns user-provided material into resources + retrievable chunks on the client.
 // Plain-text sources are chunked for real so the tutor can cite them; binary files
 // (PDF, video, slides, images) are registered and would be processed by the backend.
-import type { Chunk, Resource, ResourceKind } from './data';
+import type { Chunk, Resource, ResourceKind, Subject } from './data';
+import { extractPages, pagesToChunks } from './pdf';
+import { buildOsSubject } from './osCourse';
 import { tokenize } from './tutor';
 
 type NewResource = Omit<Resource, 'id' | 'date' | 'status'>;
@@ -39,8 +41,17 @@ export function textToChunks(text: string, title: string): NewChunk[] {
   });
 }
 
-export async function fileToResource(f: File): Promise<{ resource: NewResource; chunks: NewChunk[] }> {
+export async function fileToResource(f: File): Promise<{ resource: NewResource; chunks: NewChunk[]; subject?: Subject | null; pages?: number }> {
   const kind = kindFromName(f.name);
+  if (/\.pdf$/i.test(f.name)) {
+    try {
+      const pages = await extractPages(f);
+      const chunks = pagesToChunks(pages);
+      return { resource: { name: f.name, kind: 'pdf', meta: `${pages.length} pages` }, chunks, subject: buildOsSubject(pages, f.name), pages: pages.length };
+    } catch (e) {
+      console.warn('PDF extraction failed', e);
+    }
+  }
   const isText = /\.(txt|md|csv)$/i.test(f.name) || f.type.startsWith('text/');
   if (isText) {
     const text = await f.text();

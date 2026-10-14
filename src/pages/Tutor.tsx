@@ -48,6 +48,18 @@ import { answer } from '../tutor';
 import { YouTubeIcon } from '../components/Icons';
 import { useClickOutside } from '../components/ui';
 import { fileToResource } from '../sources';
+import EvalCard from '../components/EvalCard';
+
+const osSuggestions = [
+  { q: 'What are the four necessary conditions for deadlock?', from: 'from my OS notes', theme: 'blue' as const },
+  { q: 'Explain paging and the TLB', from: 'from my OS notes', theme: 'yellow' as const },
+  { q: 'Create a mind map for operating systems', from: 'with source links', theme: 'pink' as const },
+  { q: 'Give me a quick test', from: 'adaptive, 5 questions', theme: 'green' as const },
+  { q: 'What is a race condition?', from: 'from my OS notes', theme: 'purple' as const },
+  { q: 'How does SSTF disk scheduling work?', from: 'from my OS notes', theme: 'blue' as const },
+  { q: 'What does the process control block store?', from: 'from my OS notes', theme: 'yellow' as const },
+  { q: 'How should passwords be stored?', from: 'from my OS notes', theme: 'pink' as const },
+];
 
 export const modes = [
   { id: 'course', label: 'Study Mode (Course Only)', desc: 'Answers only from your sources; declines otherwise.' },
@@ -141,6 +153,21 @@ export default function Tutor() {
       if (!q || thinking) return;
       actions.pushChat({ role: 'user', text: q });
       setInput('');
+      const lowerQ = q.toLowerCase();
+      if (/practice question|quiz me|\btest me\b|(give|take|start|want)( me)? (a |an )?(quick |simple |short |small )?(test|quiz)|^(test|quiz)$/.test(lowerQ)) {
+        const hasOs = state.subjects.some((s) => s.id === 'os') && !/machine|data science|python|math|web/.test(lowerQ);
+        const modal: ModalState = { type: 'quiz', adaptive: true, count: 5, subjectId: hasOs ? 'os' : undefined };
+        window.setTimeout(() => {
+          actions.pushChat({
+            role: 'assistant',
+            grounded: 'source',
+            text: `Here's a quick **5-question adaptive test**${hasOs ? ' on **Operating Systems**' : ''}. It targets your weakest topics first, each question cites the page it comes from, and your mastery updates after every answer.`,
+            actions: [{ label: 'Start the test', modal }],
+          });
+          setModal(modal);
+        }, 400);
+        return;
+      }
       setThinking(true);
       const useIntent = forcedIntent ?? intent;
       setIntent(undefined);
@@ -152,7 +179,8 @@ export default function Tutor() {
         setThinking(false);
         // Requests that map onto a learning tool also open it
         if (lower.includes('mind map')) setModal({ type: 'tool', tool: 'mindmap' });
-        else if (lower.includes('practice question') || lower.includes('quiz me')) setModal({ type: 'quiz', adaptive: true, count: 5 });
+        else if (/practice question|quiz me|\btest me\b|give me a (quick |simple |short )?(test|quiz)|take a (quick |simple )?(test|quiz)/.test(lower))
+          setModal({ type: 'quiz', adaptive: true, count: 5, subjectId: state.subjects.some((s) => s.id === 'os') && !/machine|data science|python/.test(lower) ? 'os' : undefined });
       }, 650 + Math.random() * 500);
     },
     [actions, intent, state.chunks, state.tutorMode, thinking, webSearch, setModal],
@@ -170,11 +198,12 @@ export default function Tutor() {
     threadRef.current?.scrollTo({ top: threadRef.current.scrollHeight, behavior: 'smooth' });
   }, [state.chat.length, thinking]);
 
+  const hasOs = state.subjects.some((s) => s.id === 'os');
   const suggestions = useMemo(() => {
-    const pool = suggestedQuestionPool;
+    const pool = hasOs ? osSuggestions : suggestedQuestionPool;
     const start = (suggestSeed * 4) % pool.length;
     return Array.from({ length: 4 }, (_, i) => pool[(start + i) % pool.length]);
-  }, [suggestSeed]);
+  }, [suggestSeed, hasOs]);
 
   const filtered = state.resources.filter(
     (r) => (resFilter === 'all' || r.kind === resFilter || (resFilter === 'video' && r.kind === 'youtube')) && r.name.toLowerCase().includes(resQuery.toLowerCase()),
@@ -196,8 +225,8 @@ export default function Tutor() {
   const onFiles = (files: FileList | null) => {
     if (!files?.length) return;
     Array.from(files).forEach(async (f) => {
-      const { resource, chunks } = await fileToResource(f);
-      actions.addResource(resource, chunks);
+      const { resource, chunks, subject } = await fileToResource(f);
+      actions.addResource(resource, chunks, subject);
     });
     if (fileRef.current) fileRef.current.value = '';
   };
@@ -441,6 +470,15 @@ export default function Tutor() {
                             </button>
                           );
                         })}
+                      </div>
+                    )}
+                    {!!m.actions?.length && (
+                      <div className="chat-cta">
+                        {m.actions.map((a) => (
+                          <button key={a.label} className="btn btn-dark btn-sm" onClick={() => setModal(a.modal)}>
+                            {a.label}
+                          </button>
+                        ))}
                       </div>
                     )}
                     {m.role === 'assistant' && (
@@ -741,6 +779,7 @@ export default function Tutor() {
             )}
           </button>
         </div>
+        <EvalCard />
       </aside>
     </main>
   );

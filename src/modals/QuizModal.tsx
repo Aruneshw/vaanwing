@@ -17,7 +17,8 @@ interface Answered {
   correct: boolean;
 }
 
-function isCorrect(q: Question, given: string) {
+// eslint-disable-next-line react-refresh/only-export-components
+export function isCorrect(q: Question, given: string) {
   const g = given.trim().toLowerCase();
   if (q.type === 'mcq') return Number(given) === q.answer;
   if (q.type === 'numeric') {

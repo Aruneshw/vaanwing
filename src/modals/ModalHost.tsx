@@ -2,6 +2,8 @@ import { useStore } from '../store';
 import LessonViewer from './LessonViewer';
 import QuizModal from './QuizModal';
 import ToolModal from './ToolModal';
+import IntakeModal from './IntakeModal';
+import { EvalReportModal } from '../components/EvalCard';
 import { AddSourceModal, CitationModal, ResourceModal } from './SourceModals';
 import {
   ActivityModal,
@@ -58,5 +60,9 @@ export default function ModalHost() {
       return <ProgressModal />;
     case 'path':
       return <PathModal />;
+    case 'intake':
+      return <IntakeModal />;
+    case 'evalReport':
+      return <EvalReportModal />;
   }
 }
