@@ -6,6 +6,9 @@ import { pageTopic } from './pdf';
 
 export const OS_SUBJECT_ID = 'os';
 
+/** The OS course id: 'os' in the browser, possibly namespaced ('os-2') when built by the backend. */
+export const findOsSubjectId = (subjects: { id: string }[]) => subjects.find((s) => s.id === OS_SUBJECT_ID || /^os-\d+$/.test(s.id))?.id;
+
 export const osTopics = [
   'Introduction to Operating Systems', 'Process Management', 'Process Synchronization', 'Memory Management',
   'Virtual Memory', 'Paging', 'Segmentation', 'File Systems', 'I/O and Interrupts', 'Deadlocks', 'CPU Scheduling',

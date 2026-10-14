@@ -6,6 +6,7 @@ import { YouTubeIcon } from '../components/Icons';
 import { useStore, type SourceKind } from '../store';
 import { fileToResource, isUrl, textToChunks, youtubeId } from '../sources';
 import { ResourceIcon } from '../pages/Tutor';
+import { useRemote } from '../remote';
 
 const options: { kind: SourceKind; title: string; sub: string; icon: ReactNode; cls: string }[] = [
   { kind: 'upload', title: 'Upload Files', sub: 'PDF, Docs, PPT, Images', icon: <FileText size={20} />, cls: 'src-pink' },
@@ -56,11 +57,16 @@ export function AddSourceModal({ kind: initial }: { kind?: SourceKind }) {
 
 function UploadForm() {
   const { actions, setModal } = useStore();
+  const remote = useRemote();
   const ref = useRef<HTMLInputElement>(null);
   const [drag, setDrag] = useState(false);
   const handle = async (files: FileList | null) => {
     if (!files?.length) return;
     for (const f of Array.from(files)) {
+      if (remote.online) {
+        await remote.uploadFile(f);
+        continue;
+      }
       const { resource, chunks, subject } = await fileToResource(f);
       actions.addResource(resource, chunks, subject);
     }
@@ -91,6 +97,7 @@ function UploadForm() {
 
 function UrlForm({ kind }: { kind: 'youtube' | 'web' }) {
   const { actions, setModal } = useStore();
+  const remote = useRemote();
   const [url, setUrl] = useState('');
   const [err, setErr] = useState('');
   const submit = () => {
@@ -98,10 +105,18 @@ function UrlForm({ kind }: { kind: 'youtube' | 'web' }) {
     if (kind === 'youtube') {
       const id = youtubeId(u);
       if (!id) return setErr('That doesn’t look like a YouTube link (e.g. https://youtu.be/abc123).');
+      if (remote.online) {
+        void remote.addUrl(u, 'youtube'); // the server fetches the transcript with timestamps
+        return setModal(null);
+      }
       actions.addResource({ name: `YouTube · ${id}`, kind: 'youtube', meta: 'Transcript queued', url: u });
     } else {
       if (!isUrl(u)) return setErr('Enter a full URL starting with http:// or https://');
       const parsed = new URL(u);
+      if (remote.online) {
+        void remote.addUrl(u, 'web');
+        return setModal(null);
+      }
       actions.addResource({ name: `${parsed.hostname}${parsed.pathname === '/' ? '' : parsed.pathname}`.slice(0, 48), kind: 'web', meta: 'Web page', url: u });
     }
     setModal(null);
@@ -142,6 +157,7 @@ function UrlForm({ kind }: { kind: 'youtube' | 'web' }) {
 
 function TextForm() {
   const { actions, setModal } = useStore();
+  const remote = useRemote();
   const [title, setTitle] = useState('');
   const [text, setText] = useState('');
   return (
@@ -150,6 +166,11 @@ function TextForm() {
       onSubmit={(e) => {
         e.preventDefault();
         const name = title.trim() || 'Pasted notes';
+        if (remote.online) {
+          void remote.addText(name, text);
+          setModal(null);
+          return;
+        }
         const chunks = textToChunks(text, name);
         actions.addResource({ name, kind: 'notes', meta: `${chunks.length} sections`, text }, chunks);
         setModal(null);

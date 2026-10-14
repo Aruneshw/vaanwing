@@ -14,6 +14,7 @@ import {
   type SubjectIcon,
 } from './data';
 import type { EvalResult } from './eval';
+import { api, type Health, type RemoteCitation } from './api';
 
 export interface Note {
   id: string;
@@ -52,6 +53,7 @@ export interface ChatMessage {
   text: string;
   citations?: Citation[];
   grounded?: 'source' | 'outside' | 'declined';
+  model?: string; // which model answered (backend mode)
   actions?: { label: string; modal: ModalState }[];
   at: number;
 }
@@ -251,6 +253,7 @@ function useStoreValue() {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [pendingTutorQuery, setPendingTutorQuery] = useState<string | null>(null);
+  const [backend, setBackend] = useState<{ online: boolean; checked: boolean; health?: Health }>({ online: false, checked: false });
   const saveTimer = useRef<number | undefined>(undefined);
 
   useEffect(() => {
@@ -300,6 +303,7 @@ function useStoreValue() {
           const wasDone = found.lesson.progress >= 100;
           let next = mapLesson(s, subjectId, lessonId, (l) => ({ ...l, progress: Math.max(0, Math.min(100, Math.round(progress))) }));
           next = { ...next, lastLesson: { subjectId, lessonId } };
+          if (found.subject.remote) api.lessonProgress(lessonId, Math.round(progress)).catch(() => undefined);
           if (!wasDone && progress >= 100) {
             next = logActivity(next, 'complete', `Completed: ${found.lesson.title}`);
             next = addMinutes(next, 10);
@@ -456,10 +460,71 @@ function useStoreValue() {
       },
       renameResource(id: string, name: string) {
         update((s) => ({ ...s, resources: s.resources.map((r) => (r.id === id ? { ...r, name } : r)) }));
+        if (state.resources.find((r) => r.id === id)?.remote) api.rename(id, name).catch(() => toast('Rename failed on the server'));
       },
       deleteResource(id: string) {
         update((s) => ({ ...s, resources: s.resources.filter((r) => r.id !== id), chunks: s.chunks.filter((c) => c.resourceId !== id) }));
+        if (state.resources.find((r) => r.id === id)?.remote) api.remove(id).catch(() => toast('Delete failed on the server'));
         toast('Source removed');
+      },
+      /** Replace everything the backend owns (resources, their chunks, courses) with fresh copies. */
+      mergeRemote(resources: Resource[], chunks: Chunk[], subjects: Subject[]) {
+        const ids = new Set(resources.map((r) => r.id));
+        const subjectIds = new Set(subjects.map((x) => x.id));
+        update((s) => ({
+          ...s,
+          resources: [...resources, ...s.resources.filter((r) => !r.remote && !ids.has(r.id))],
+          chunks: [...s.chunks.filter((c) => !ids.has(c.resourceId) && !s.resources.find((r) => r.id === c.resourceId)?.remote), ...chunks],
+          subjects: [...s.subjects.filter((x) => !subjectIds.has(x.id) && !x.remote), ...subjects],
+        }));
+      },
+      /** The tutor's "I've read your file" message, used by both the local and the backend upload paths. */
+      announceSource(r: { id: string; name: string; meta: string }, chunkCount: number, topicCount: number, subject?: Subject | null) {
+        update((s) => {
+          const msg: ChatMessage = {
+            id: uid(),
+            role: 'assistant',
+            at: now(),
+            grounded: 'source',
+            text:
+              `I've read **${r.name}** — ${r.meta}, ${chunkCount} cited excerpts across ${topicCount} topics` +
+              (subject ? ` (${subject.modules.length} topics added to Learn as “${subject.name}”).` : '.') +
+              `\n\nAsk me anything about it and I'll answer with page citations. Or take a quick test to see where you stand.`,
+            actions: subject
+              ? [
+                  { label: 'Take a quick test', modal: { type: 'quiz', subjectId: subject.id, count: 5, adaptive: true } },
+                  { label: 'Open in Learn', modal: { type: 'flowmap', subjectId: subject.id } },
+                ]
+              : [{ label: 'View extracted excerpts', modal: { type: 'resource', resourceId: r.id } }],
+          };
+          let next = logActivity({ ...s, chat: [...s.chat, msg] }, 'upload', `Added source: ${r.name}`);
+          if (subject)
+            next = { ...next, notifications: [{ id: uid(), text: `“${subject.name}” course built from ${r.name}. Take the quick test!`, at: now(), read: false }, ...next.notifications] };
+          return next;
+        });
+      },
+      /** Make sure every cited excerpt can be opened, even if it came from a source not yet synced. */
+      upsertCitations(cites: RemoteCitation[]) {
+        update((s) => {
+          const chunks = [...s.chunks];
+          const resources = [...s.resources];
+          for (const c of cites) {
+            if (!chunks.some((x) => x.id === c.chunkId))
+              chunks.push({ id: c.chunkId, resourceId: c.resourceId, location: c.location, topic: c.topic, keywords: [], text: c.excerpt });
+            if (!resources.some((r) => r.id === c.resourceId))
+              resources.push({ id: c.resourceId, name: c.resource, kind: 'pdf', meta: '', date: '', status: 'ready', remote: true });
+          }
+          return { ...s, chunks, resources };
+        });
+      },
+      setMasteryMany(m: Record<string, number>) {
+        update((s) => ({ ...s, mastery: { ...s.mastery, ...m } }));
+      },
+      setAnalysis(analysis: number) {
+        update((s) => ({ ...s, analysis }));
+      },
+      setResourceStatus(id: string, patch: Partial<Resource>) {
+        update((s) => ({ ...s, resources: s.resources.map((r) => (r.id === id ? { ...r, ...patch } : r)) }));
       },
       tickAnalysis() {
         update((s) => {
@@ -473,7 +538,12 @@ function useStoreValue() {
         });
       },
       pushChat(msg: Omit<ChatMessage, 'id' | 'at'>) {
-        update((s) => ({ ...s, chat: [...s.chat, { ...msg, id: uid(), at: now() }] }));
+        const id = uid();
+        update((s) => ({ ...s, chat: [...s.chat, { ...msg, id, at: now() }] }));
+        return id;
+      },
+      updateChat(id: string, patch: Partial<ChatMessage> | ((m: ChatMessage) => Partial<ChatMessage>)) {
+        update((s) => ({ ...s, chat: s.chat.map((m) => (m.id === id ? { ...m, ...(typeof patch === 'function' ? patch(m) : patch) } : m)) }));
       },
       clearChat() {
         update((s) => ({ ...s, chat: [] }));
@@ -542,7 +612,7 @@ function useStoreValue() {
         update((s) => ({ ...s, evalResult }));
       },
     };
-  }, [update, toast, state.subjects]);
+  }, [update, toast, state.subjects, state.resources]);
 
   // aggregate stats
   const stats = useMemo(() => {
@@ -588,6 +658,8 @@ function useStoreValue() {
     pendingTutorQuery,
     setPendingTutorQuery,
     goTutorWith,
+    backend,
+    setBackend,
   };
 }
 

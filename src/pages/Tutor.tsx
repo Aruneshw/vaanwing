@@ -49,6 +49,9 @@ import { YouTubeIcon } from '../components/Icons';
 import { useClickOutside } from '../components/ui';
 import { fileToResource } from '../sources';
 import EvalCard from '../components/EvalCard';
+import { findOsSubjectId } from '../osCourse';
+import { chatStream, type RemoteCitation } from '../api';
+import { useRemote } from '../remote';
 
 const osSuggestions = [
   { q: 'What are the four necessary conditions for deadlock?', from: 'from my OS notes', theme: 'blue' as const },
@@ -114,7 +117,8 @@ function renderRich(text: string, onCite: (n: number) => void) {
 }
 
 export default function Tutor() {
-  const { state, actions, setModal, toast, pendingTutorQuery, setPendingTutorQuery } = useStore();
+  const { state, actions, setModal, toast, pendingTutorQuery, setPendingTutorQuery, backend } = useStore();
+  const remote = useRemote();
   const [input, setInput] = useState('');
   const [intent, setIntent] = useState<string | undefined>();
   const [thinking, setThinking] = useState(false);
@@ -155,8 +159,9 @@ export default function Tutor() {
       setInput('');
       const lowerQ = q.toLowerCase();
       if (/practice question|quiz me|\btest me\b|(give|take|start|want)( me)? (a |an )?(quick |simple |short |small )?(test|quiz)|^(test|quiz)$/.test(lowerQ)) {
-        const hasOs = state.subjects.some((s) => s.id === 'os') && !/machine|data science|python|math|web/.test(lowerQ);
-        const modal: ModalState = { type: 'quiz', adaptive: true, count: 5, subjectId: hasOs ? 'os' : undefined };
+        const osId = findOsSubjectId(state.subjects);
+        const hasOs = !!osId && !/machine|data science|python|math|web/.test(lowerQ);
+        const modal: ModalState = { type: 'quiz', adaptive: true, count: 5, subjectId: hasOs ? osId : undefined };
         window.setTimeout(() => {
           actions.pushChat({
             role: 'assistant',
@@ -172,6 +177,52 @@ export default function Tutor() {
       const useIntent = forcedIntent ?? intent;
       setIntent(undefined);
       const lower = q.toLowerCase();
+      const afterAnswer = () => {
+        actions.logActivity('chat', `Asked AI Tutor: ${q.length > 38 ? q.slice(0, 38) + '…' : q}`);
+        setThinking(false);
+        if (lower.includes('mind map')) setModal({ type: 'tool', tool: 'mindmap' });
+      };
+
+      if (backend.online && state.resources.some((r) => r.remote && r.status === 'ready')) {
+        // Backend: hybrid retrieval + the configured tutor model, streamed token by token.
+        let msgId: string | null = null;
+        let text = '';
+        let cites: RemoteCitation[] = [];
+        const ensure = () => {
+          if (!msgId) {
+            setThinking(false);
+            msgId = actions.pushChat({ role: 'assistant', text: '' });
+          }
+          return msgId;
+        };
+        const history = state.chat.slice(-6).map((m) => ({ role: m.role, text: m.text }));
+        chatStream(
+          { message: q, mode: state.tutorMode, webSearch, intent: useIntent, history },
+          {
+            citations: (c) => {
+              cites = c;
+            },
+            token: (t) => {
+              text += t;
+              actions.updateChat(ensure(), { text });
+            },
+            done: (d) => {
+              const final = d.citations ?? cites;
+              actions.upsertCitations(final);
+              actions.updateChat(ensure(), { text, grounded: d.grounded, model: d.model, citations: final.map((c) => ({ n: c.n, chunkId: c.chunkId })) });
+            },
+          },
+        )
+          .catch(() => {
+            const res = answer(q, state.chunks, { mode: state.tutorMode, webSearch, intent: useIntent });
+            const patch = { text: res.text, citations: res.citations, grounded: res.grounded, model: 'offline (backend unreachable)' };
+            if (msgId) actions.updateChat(msgId, patch);
+            else actions.pushChat({ role: 'assistant', ...patch });
+          })
+          .finally(afterAnswer);
+        return;
+      }
+
       window.setTimeout(() => {
         const res = answer(q, state.chunks, { mode: state.tutorMode, webSearch, intent: useIntent });
         actions.pushChat({ role: 'assistant', text: res.text, citations: res.citations, grounded: res.grounded });
@@ -180,10 +231,10 @@ export default function Tutor() {
         // Requests that map onto a learning tool also open it
         if (lower.includes('mind map')) setModal({ type: 'tool', tool: 'mindmap' });
         else if (/practice question|quiz me|\btest me\b|give me a (quick |simple |short )?(test|quiz)|take a (quick |simple )?(test|quiz)/.test(lower))
-          setModal({ type: 'quiz', adaptive: true, count: 5, subjectId: state.subjects.some((s) => s.id === 'os') && !/machine|data science|python/.test(lower) ? 'os' : undefined });
+          setModal({ type: 'quiz', adaptive: true, count: 5, subjectId: findOsSubjectId(state.subjects) && !/machine|data science|python/.test(lower) ? findOsSubjectId(state.subjects) : undefined });
       }, 650 + Math.random() * 500);
     },
-    [actions, intent, state.chunks, state.tutorMode, thinking, webSearch, setModal],
+    [actions, intent, state.chunks, state.chat, state.resources, state.tutorMode, thinking, webSearch, setModal, backend.online],
   );
 
   // A question handed over from another page (e.g. "Ask AI Tutor" on a concept)
@@ -198,7 +249,7 @@ export default function Tutor() {
     threadRef.current?.scrollTo({ top: threadRef.current.scrollHeight, behavior: 'smooth' });
   }, [state.chat.length, thinking]);
 
-  const hasOs = state.subjects.some((s) => s.id === 'os');
+  const hasOs = !!findOsSubjectId(state.subjects);
   const suggestions = useMemo(() => {
     const pool = hasOs ? osSuggestions : suggestedQuestionPool;
     const start = (suggestSeed * 4) % pool.length;
@@ -225,6 +276,10 @@ export default function Tutor() {
   const onFiles = (files: FileList | null) => {
     if (!files?.length) return;
     Array.from(files).forEach(async (f) => {
+      if (backend.online) {
+        await remote.uploadFile(f);
+        return;
+      }
       const { resource, chunks, subject } = await fileToResource(f);
       actions.addResource(resource, chunks, subject);
     });
@@ -384,6 +439,19 @@ export default function Tutor() {
           <div>
             <h2>AI Tutor</h2>
             <p>Your personal, source-grounded study companion</p>
+            <span
+              className={`backend-pill ${backend.online ? 'on' : ''}`}
+              title={backend.online ? Object.entries(backend.health?.models ?? {}).map(([r, m]) => `${r}: ${m.enabled ? m.model : 'off'}`).join('\n') : 'Start the backend (uvicorn) to use real models; answers are computed in the browser meanwhile.'}
+            >
+              <i />
+              {!backend.checked
+                ? 'Connecting…'
+                : backend.online
+                  ? backend.health?.models.tutor?.enabled
+                    ? `Backend · ${backend.health.models.tutor.model}`
+                    : 'Backend · extractive (no model key)'
+                  : 'Offline mode'}
+            </span>
           </div>
           <div className="dropdown-wrap mode-wrap" ref={modeRef}>
             <button className="mode-btn" onClick={() => setModeOpen((o) => !o)}>
@@ -458,6 +526,7 @@ export default function Tutor() {
                       </span>
                     )}
                     <div className="bubble-text">{renderRich(m.text, (n) => citeOpen(m, n))}</div>
+                    {m.model && m.role === 'assistant' && <span className="model-tag">{m.model === 'extractive' ? 'extractive answer · no model configured' : `answered by ${m.model}`}</span>}
                     {!!m.citations?.length && (
                       <div className="cite-list">
                         {m.citations.map((c) => {

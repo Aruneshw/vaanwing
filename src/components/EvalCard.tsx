@@ -3,7 +3,8 @@ import { ChartNoAxesColumnIncreasing, Download, FlaskConical, Play, RefreshCw } 
 import { useStore } from '../store';
 import { buildTestSet, evalCase, runPersonalization, type CaseResult, type EvalResult } from '../eval';
 import { Modal, Progress } from './ui';
-import { OS_SUBJECT_ID } from '../osCourse';
+import { findOsSubjectId } from '../osCourse';
+import { api, ApiError } from '../api';
 
 const pct = (x: number) => `${Math.round(x * 100)}%`;
 const mean = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0);
@@ -22,14 +23,45 @@ export function summarize(cases: CaseResult[]) {
 }
 
 export default function EvalCard() {
-  const { state, actions, setModal, toast } = useStore();
+  const { state, actions, setModal, toast, backend } = useStore();
   const [running, setRunning] = useState(false);
   const [done, setDone] = useState(0);
   const [total, setTotal] = useState(0);
   const [partial, setPartial] = useState<CaseResult[]>([]);
   const r = state.evalResult;
 
-  const run = () => {
+  const runRemote = async () => {
+    // Backend: the real retrieval + generation pipeline, judged by the configured judge model when available.
+    const judge = backend.health?.models.judge?.enabled ? 'llm' : 'lexical';
+    setRunning(true);
+    setTotal(1);
+    setDone(0);
+    setPartial([]);
+    try {
+      const r = (await api.evalRun(judge)) as unknown as Omit<EvalResult, 'at'> & { at: string; judge: string; cases: (Partial<CaseResult> & { q: string; offMaterial: boolean })[] };
+      const cases: CaseResult[] = r.cases.map((c) => ({
+        q: c.q, offMaterial: c.offMaterial, retrieved: c.retrieved ?? [], declined: !!c.declined,
+        faithfulness: c.faithfulness ?? 0, relevancy: c.relevancy ?? 0, precision: c.precision ?? 0, recall: c.recall ?? 0,
+      }));
+      actions.setEvalResult({ at: Date.parse(r.at) || Date.now(), testSet: `${r.testSet} · judge: ${r.judge} · server`, rag: r.rag, personalization: r.personalization, cases });
+      toast('Evaluation complete (backend)');
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 409) {
+        toast('Upload the Operating System notes PDF first — running the in-browser evaluation instead');
+        setRunning(false);
+        runLocal();
+        return;
+      }
+      toast(`Evaluation failed: ${(e as Error).message}`);
+    } finally {
+      setDone(1);
+      setRunning(false);
+    }
+  };
+
+  const run = () => (backend.online ? void runRemote() : runLocal());
+
+  const runLocal = () => {
     const set = buildTestSet(state.chunks, state.resources);
     setRunning(true);
     setTotal(set.cases.length + 1);
@@ -46,7 +78,7 @@ export default function EvalCard() {
         window.setTimeout(tick, 90);
         return;
       }
-      const subj = state.subjects.some((s) => s.id === OS_SUBJECT_ID) ? OS_SUBJECT_ID : 'ds';
+      const subj = findOsSubjectId(state.subjects) ?? 'ds';
       const personalization = runPersonalization(subj);
       const res: EvalResult = { at: Date.now(), testSet: set.name, rag: summarize(results), personalization, cases: results };
       actions.setEvalResult(res);
@@ -81,7 +113,7 @@ export default function EvalCard() {
       {running && (
         <div className="eval-run">
           <span className="muted small">
-            Running {Math.min(done, total)}/{total}…
+            {backend.online ? 'Running the test set through the backend pipeline…' : `Running ${Math.min(done, total)}/${total}…`}
           </span>
           <Progress value={(done / Math.max(1, total)) * 100} height={6} theme="blue" />
         </div>

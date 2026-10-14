@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { api } from '../api';
 import { ArrowRight, BookOpen, Check, CircleCheck, ClipboardCheck, FileText, RotateCcw, Target, X } from 'lucide-react';
 import { Modal, Progress } from '../components/ui';
 import { concepts, questionBank, type Question } from '../data';
@@ -30,7 +31,7 @@ export function isCorrect(q: Question, given: string) {
 }
 
 export default function QuizModal(props: Props) {
-  const { state, actions, setModal } = useStore();
+  const { state, actions, setModal, backend, toast } = useStore();
   const [subjectId, setSubjectId] = useState(props.subjectId ?? state.lastLesson.subjectId);
   const [count, setCount] = useState(props.count ?? 5);
   const [phase, setPhase] = useState<'intro' | 'question' | 'result'>(props.conceptIds ? 'question' : 'intro');
@@ -42,7 +43,31 @@ export default function QuizModal(props: Props) {
   const adaptive = props.adaptive ?? false;
   const [before, setBefore] = useState(state.mastery);
 
-  const { questions, repeats } = useMemo(() => {
+  // Backend mode: the server selects (weakest-first, unseen-first), grades and updates mastery.
+  const remote = backend.online && !!state.subjects.find((s) => s.id === subjectId)?.remote;
+  const [rq, setRq] = useState<{ quizId: string; questions: Question[]; repeats: number } | null>(null);
+  const [remoteBefore, setRemoteBefore] = useState<Record<string, number>>({});
+  const [remoteAfter, setRemoteAfter] = useState<Record<string, number>>({});
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    if (!remote || phase !== 'question' || rq) return;
+    let cancelled = false;
+    api
+      .quiz({ subjectId, count, conceptIds: props.conceptIds, adaptive: adaptive || !!props.conceptIds })
+      .then((r) => {
+        if (cancelled) return;
+        setRq({ quizId: r.quizId, repeats: r.repeats, questions: r.questions.map((x) => ({ ...x, options: x.options ?? undefined, answer: '', explanation: '' })) });
+      })
+      .catch((e) => {
+        toast(`Couldn't load questions: ${(e as Error).message}`);
+        setModal(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [remote, phase, rq, seed]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const local = useMemo(() => {
     let pool = questionBank.filter((q) => q.subjectId === subjectId);
     if (props.conceptIds?.length) {
       const focused = pool.filter((q) => props.conceptIds!.includes(q.concept));
@@ -65,14 +90,37 @@ export default function QuizModal(props: Props) {
     return { questions: chosen, repeats: reps };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [subjectId, count, seed, props.conceptIds, adaptive]);
+  const { questions, repeats } = remote ? { questions: rq?.questions ?? [], repeats: rq?.repeats ?? 0 } : local;
 
   const q = questions[i];
   const close = () => setModal(null);
   const subject = state.subjects.find((s) => s.id === subjectId);
-  const quizSubjects = state.subjects.filter((s) => questionBank.some((x) => x.subjectId === s.id));
+  const quizSubjects = state.subjects.filter((s) => (backend.online && s.remote) || questionBank.some((x) => x.subjectId === s.id));
 
-  const check = () => {
-    if (!q || !given.trim()) return;
+  const check = async () => {
+    if (!q || !given.trim() || busy) return;
+    if (remote && rq) {
+      setBusy(true);
+      try {
+        const r = await api.answer(rq.quizId, q.id, given);
+        const graded: Question = {
+          ...q,
+          explanation: r.explanation,
+          source: r.source,
+          answer: q.type === 'mcq' && q.options ? String(Math.max(0, q.options.indexOf(r.correctAnswer))) : r.correctAnswer,
+        };
+        setRq({ ...rq, questions: rq.questions.map((x) => (x.id === q.id ? graded : x)) });
+        setRemoteBefore((b) => (q.concept in b ? b : { ...b, [q.concept]: r.masteryBefore }));
+        setRemoteAfter((a) => ({ ...a, [q.concept]: r.masteryAfter }));
+        setAnswers((a) => [...a, { q: graded, given, correct: r.correct }]);
+        setChecked(true);
+      } catch (e) {
+        toast(`Couldn't check the answer: ${(e as Error).message}`);
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
     setChecked(true);
     setAnswers((a) => [...a, { q, given, correct: isCorrect(q, given) }]);
   };
@@ -80,6 +128,7 @@ export default function QuizModal(props: Props) {
     if (i + 1 >= questions.length) {
       const all = answers;
       actions.recordQuiz(subjectId, all.map((a) => ({ questionId: a.q.id, concept: a.q.concept, correct: a.correct })), adaptive);
+      if (remote) actions.setMasteryMany(remoteAfter); // the server's estimates are authoritative
       setPhase('result');
       return;
     }
@@ -94,6 +143,9 @@ export default function QuizModal(props: Props) {
     setChecked(false);
     setAnswers([]);
     setBefore(state.mastery);
+    setRq(null);
+    setRemoteBefore({});
+    setRemoteAfter({});
     setPhase('question');
   };
 
@@ -145,6 +197,13 @@ export default function QuizModal(props: Props) {
           <button className="btn btn-dark btn-lg" onClick={() => setPhase('question')}>
             Start quiz <ArrowRight size={18} />
           </button>
+        </div>
+      )}
+
+      {phase === 'question' && !q && remote && (
+        <div className="generating">
+          <span className="spinner" />
+          Preparing your questions…
         </div>
       )}
 
@@ -201,8 +260,8 @@ export default function QuizModal(props: Props) {
             </span>
             <span className="grow" />
             {!checked ? (
-              <button className="btn btn-dark" disabled={!given.trim()} onClick={check}>
-                Check answer
+              <button className="btn btn-dark" disabled={!given.trim() || busy} onClick={check}>
+                {busy ? 'Checking…' : 'Check answer'}
               </button>
             ) : (
               <button className="btn btn-dark" onClick={next}>
@@ -213,7 +272,7 @@ export default function QuizModal(props: Props) {
         </div>
       )}
 
-      {phase === 'result' && <QuizResult answers={answers} before={before} adaptive={adaptive} onRetake={restart} conceptName={conceptName} />}
+      {phase === 'result' && <QuizResult answers={answers} before={remote ? { ...before, ...remoteBefore } : before} adaptive={adaptive} onRetake={restart} conceptName={conceptName} />}
     </Modal>
   );
 }

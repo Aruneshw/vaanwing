@@ -31,6 +31,7 @@ export interface Subject {
   icon: SubjectIcon;
   theme: Theme;
   modules: Module[];
+  remote?: boolean; // built by the backend from uploaded material
 }
 
 export interface Concept {
@@ -53,6 +54,7 @@ export interface Resource {
   status: 'ready' | 'processing';
   text?: string; // raw text for user-provided notes — becomes retrievable chunks
   url?: string;
+  remote?: boolean; // stored and processed by the backend
 }
 
 export interface Chunk {
@@ -340,6 +342,15 @@ export const concepts: Concept[] = [
 ];
 
 concepts.push(...osConcepts);
+
+/** Add concepts the backend extracted from uploaded material (no-op for known ids). */
+export function registerConcepts(list: Concept[]) {
+  for (const c of list) {
+    const existing = concepts.find((x) => x.id === c.id);
+    if (existing) Object.assign(existing, c);
+    else concepts.push(c);
+  }
+}
 
 // Link each concept to the first lesson that teaches it.
 for (const c of concepts) {

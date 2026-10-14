@@ -1,11 +1,13 @@
 // New-student onboarding: a short intake conversation, then a diagnostic quiz with one
 // question per topic. Results seed the learner model (strengths / weaknesses).
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { api } from '../api';
 import { ArrowRight, Check, GraduationCap, Sparkles, Target, X } from 'lucide-react';
 import { Modal, Progress } from '../components/ui';
 import { concepts, questionBank, type Question } from '../data';
 import { bktUpdate, useStore } from '../store';
 import { isCorrect } from './QuizModal';
+import { findOsSubjectId } from '../osCourse';
 
 const levels = [
   { id: 'beginner', label: 'New to it', prior: 0.2 },
@@ -14,25 +16,38 @@ const levels = [
 ];
 
 export default function IntakeModal() {
-  const { state, actions, setModal } = useStore();
+  const { state, actions, setModal, backend, toast } = useStore();
   const [step, setStep] = useState<'name' | 'subject' | 'level' | 'goal' | 'quiz' | 'result'>('name');
   const [name, setName] = useState(state.userName === 'there' ? '' : state.userName);
-  const quizSubjects = state.subjects.filter((s) => questionBank.filter((q) => q.subjectId === s.id).length >= 4);
-  const [subjectId, setSubjectId] = useState(quizSubjects.find((s) => s.id === 'os')?.id ?? quizSubjects[0]?.id ?? 'ds');
+  const quizSubjects = state.subjects.filter((s) => (backend.online && s.remote) || questionBank.filter((q) => q.subjectId === s.id).length >= 4);
+  const [subjectId, setSubjectId] = useState(findOsSubjectId(quizSubjects) ?? quizSubjects[0]?.id ?? 'ds');
   const [level, setLevel] = useState(levels[1]);
   const [goal, setGoal] = useState('');
   const [i, setI] = useState(0);
   const [given, setGiven] = useState('');
   const [answers, setAnswers] = useState<{ q: Question; correct: boolean }[]>([]);
 
+  // Backend mode: the server picks one question per topic, grades, and seeds the learner model.
+  const remote = backend.online && !!state.subjects.find((s) => s.id === subjectId)?.remote;
+  const [rdiag, setRdiag] = useState<{ quizId: string; questions: Question[] } | null>(null);
+  const [raw, setRaw] = useState<{ questionId: string; answer: string }[]>([]);
+  useEffect(() => {
+    if (!remote || step !== 'quiz' || rdiag) return;
+    api
+      .diagnosticStart(subjectId)
+      .then((r) => setRdiag({ quizId: r.quizId, questions: r.questions.map((x) => ({ ...x, options: x.options ?? undefined, answer: '', explanation: '' })) }))
+      .catch((e) => toast(`Couldn't start the diagnostic: ${(e as Error).message}`));
+  }, [remote, step, rdiag, subjectId, toast]);
+
   // One question per concept (easiest first) — breadth over depth for a diagnostic.
-  const questions = useMemo(() => {
+  const localQuestions = useMemo(() => {
     const pool = questionBank.filter((q) => q.subjectId === subjectId);
     const byConcept = new Map<string, Question>();
     const rank = { Easy: 0, Medium: 1, Hard: 2 };
     for (const q of [...pool].sort((a, b) => rank[a.difficulty] - rank[b.difficulty])) if (!byConcept.has(q.concept)) byConcept.set(q.concept, q);
     return [...byConcept.values()].slice(0, 8);
   }, [subjectId]);
+  const questions = remote ? (rdiag?.questions ?? []) : localQuestions;
 
   const subject = state.subjects.find((s) => s.id === subjectId);
   const q = questions[i];
@@ -52,21 +67,38 @@ export default function IntakeModal() {
 
   const submit = () => {
     if (!q || !given.trim()) return;
-    const next = [...answers, { q, correct: isCorrect(q, given) }];
+    record(given);
+  };
+
+  const record = (value: string) => {
+    if (!q) return;
+    const next = [...answers, { q, correct: remote ? false : isCorrect(q, value) }];
+    const nextRaw = [...raw, { questionId: q.id, answer: value }];
     setAnswers(next);
+    setRaw(nextRaw);
     setGiven('');
-    if (i + 1 >= questions.length) finish(next);
+    if (i + 1 >= questions.length) (remote ? finishRemote(nextRaw) : finish(next));
     else setI(i + 1);
   };
 
-  const skip = () => {
-    if (!q) return;
-    const next = [...answers, { q, correct: false }];
-    setAnswers(next);
-    setGiven('');
-    if (i + 1 >= questions.length) finish(next);
-    else setI(i + 1);
+  const finishRemote = async (all: { questionId: string; answer: string }[]) => {
+    if (!rdiag) return;
+    try {
+      const r = await api.diagnosticSubmit({ quizId: rdiag.quizId, name: name.trim(), level: level.id, goal, answers: all });
+      const m: Record<string, number> = {};
+      const ok = new Set(r.strengths.map((x) => x.concept));
+      for (const x of [...r.strengths, ...r.weaknesses]) m[x.concept] = x.mastery;
+      const graded = rdiag.questions.map((qq) => ({ q: qq, correct: ok.has(qq.concept) }));
+      setAnswers(graded);
+      setMastery(m);
+      actions.completeOnboarding(name.trim(), m, subjectId, graded.map((a) => ({ questionId: a.q.id, correct: a.correct })));
+      setStep('result');
+    } catch (e) {
+      toast(`Couldn't submit the diagnostic: ${(e as Error).message}`);
+    }
   };
+
+  const skip = () => record('');
 
   const [mastery, setMastery] = useState<Record<string, number>>({});
   const finish = (all: { q: Question; correct: boolean }[]) => {
@@ -133,6 +165,13 @@ export default function IntakeModal() {
               </form>
             )}
           </div>
+        </div>
+      )}
+
+      {step === 'quiz' && !q && remote && (
+        <div className="generating">
+          <span className="spinner" />
+          Preparing your diagnostic…
         </div>
       )}
 

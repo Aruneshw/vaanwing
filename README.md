@@ -40,7 +40,26 @@ integration points for the real services:
 - `src/store.tsx` — learner model with Bayesian Knowledge Tracing updates after every quiz answer.
 - `src/data.ts` — seed course, concepts, knowledge-base excerpts and question bank.
 
-## Run
+## Run (frontend + backend)
+
+```bash
+# terminal 1 — backend (see backend/README.md; add ANTHROPIC_API_KEY etc. to backend/.env for real models)
+cd backend && python -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt
+uvicorn app.main:app --reload            # http://localhost:8000
+
+# terminal 2 — frontend
+npm install && npm run dev               # http://localhost:5173 (proxies /api to :8000)
+```
+
+The AI Tutor header shows the connection: **Backend · <tutor model>** when connected (hover for every role's
+model), **Backend · extractive** when the backend runs without model keys, or **Offline mode** when it isn't
+running. With the backend connected, uploads are processed on the server (live progress in *Analyzed Content*),
+chat answers stream from `/api/chat/stream`, quizzes, the new-student diagnostic and lesson progress use the
+learner model on the server, and *System Evaluation* runs the backend pipeline. Without it, everything falls back
+to the in-browser implementation below. For a deployed build, set `VITE_API_URL` to the backend's URL
+(and add the frontend origin to the backend's `CORS_ORIGINS`).
+
+## Run (frontend only)
 
 ```bash
 npm install

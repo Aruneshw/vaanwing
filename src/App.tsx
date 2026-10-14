@@ -7,9 +7,12 @@ import ModalHost from './modals/ModalHost';
 import Home from './pages/Home';
 import Learn from './pages/Learn';
 import Tutor from './pages/Tutor';
+import { api } from './api';
+import { useRemote } from './remote';
 
 function Shell() {
-  const { state, actions, paletteOpen, toasts, modal, setModal } = useStore();
+  const { state, actions, paletteOpen, toasts, modal, setModal, backend, setBackend, toast } = useStore();
+  const remote = useRemote();
   const { pathname } = useLocation();
 
   useEffect(() => window.scrollTo(0, 0), [pathname]);
@@ -19,12 +22,34 @@ function Shell() {
     if (!state.onboarded && !modal) setModal({ type: 'intake' });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Background "ingestion" of newly added sources.
+  // Connect to the backend when it is running; re-check every 15 s while offline.
   useEffect(() => {
-    if (state.analysis >= 100) return;
+    if (backend.online) return;
+    let stop = false;
+    const check = () =>
+      api
+        .health()
+        .then((health) => {
+          if (stop) return;
+          setBackend({ online: true, checked: true, health });
+          remote.syncAll().catch(() => undefined);
+          if (backend.checked) toast('Connected to the StudyNest backend');
+        })
+        .catch(() => !stop && setBackend({ online: false, checked: true }));
+    check();
+    const t = window.setInterval(check, 15000);
+    return () => {
+      stop = true;
+      window.clearInterval(t);
+    };
+  }, [backend.online]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Background "ingestion" of newly added in-browser sources (backend sources report real progress).
+  useEffect(() => {
+    if (state.analysis >= 100 || state.resources.some((r) => r.remote && r.status === 'processing')) return;
     const t = window.setInterval(() => actions.tickAnalysis(), 700);
     return () => window.clearInterval(t);
-  }, [state.analysis >= 100, actions]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [state.analysis >= 100, state.resources, actions]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="app">
